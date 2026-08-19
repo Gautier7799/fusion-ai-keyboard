@@ -35,12 +35,11 @@ jobs:
       - name: Build Web Dist
         run: npx vite build
 
-      - name: Sync Capacitor Android
+      - name: Generate Fresh Android Project
         run: |
-          npx cap init "Fusion AI Keyboard" "com.gaidiamjed.fusionkeyboard" --web-dir dist || true
-          if [ ! -d "android/app" ]; then
-            npx cap add android
-          fi
+          rm -rf android capacitor.config.ts capacitor.config.json
+          npx cap init "Fusion AI Keyboard" "com.gaidiamjed.fusionkeyboard" --web-dir dist
+          npx cap add android
           npx cap sync android
 
       - name: Build Debug APK with Gradle
