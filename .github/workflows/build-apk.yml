@@ -35,7 +35,7 @@ jobs:
       - name: Build Web Dist
         run: npx vite build
 
-      - name: Generate Fresh Android Project with Native InputConnection
+      - name: Generate Android Project with Direct IME Engine
         run: |
           rm -rf android capacitor.config.ts capacitor.config.json
           npx cap init "Fusion AI Keyboard" "com.gaidiamjed.fusionkeyboard" --web-dir dist
@@ -74,7 +74,7 @@ jobs:
                           android:resource="@xml/method" /> \
                   </service>' android/app/src/main/AndroidManifest.xml
 
-          # 3. Create Full Native Bridge Keyboard Service
+          # 3. Create Full Self-Contained Keyboard IME Service
           mkdir -p android/app/src/main/java/com/gaidiamjed/fusionkeyboard
           cat << 'EOF' > android/app/src/main/java/com/gaidiamjed/fusionkeyboard/FusionKeyboardService.java
           package com.gaidiamjed.fusionkeyboard;
@@ -82,7 +82,6 @@ jobs:
           import android.inputmethodservice.InputMethodService;
           import android.view.KeyEvent;
           import android.view.View;
-          import android.view.inputmethod.EditorInfo;
           import android.view.inputmethod.InputConnection;
           import android.webkit.JavascriptInterface;
           import android.webkit.WebSettings;
@@ -123,20 +122,72 @@ jobs:
               @Override
               public View onCreateInputView() {
                   FrameLayout root = new FrameLayout(this);
-                  int heightPx = (int) (310 * getResources().getDisplayMetrics().density);
+                  int heightPx = (int) (320 * getResources().getDisplayMetrics().density);
                   root.setLayoutParams(new FrameLayout.LayoutParams(
                           FrameLayout.LayoutParams.MATCH_PARENT, heightPx));
 
                   webView = new WebView(this);
-                  WebSettings webSettings = webView.getSettings();
-                  webSettings.setJavaScriptEnabled(true);
-                  webSettings.setDomStorageEnabled(true);
-                  webSettings.setAllowFileAccess(true);
-                  webSettings.setAllowContentAccess(true);
+                  WebSettings s = webView.getSettings();
+                  s.setJavaScriptEnabled(true);
+                  s.setDomStorageEnabled(true);
+                  s.setAllowFileAccess(true);
+                  s.setAllowContentAccess(true);
 
                   webView.addJavascriptInterface(new AndroidKeyboardBridge(), "AndroidKeyboard");
                   webView.setWebViewClient(new WebViewClient());
-                  webView.loadUrl("file:///android_asset/public/index.html");
+
+                  String keyboardHtml = "<!DOCTYPE html><html dir='rtl' lang='ar'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1.0,user-scalable=no'><style>"
+                      + "*{-webkit-tap-highlight-color:transparent;box-sizing:border-box;margin:0;padding:0;user-select:none}"
+                      + "body{background:#09090b;color:#fff;font-family:system-ui,-apple-system,sans-serif;height:100vh;display:flex;flex-direction:column;justify-content:space-between;padding:4px 4px 8px}"
+                      + ".bar{display:flex;gap:6px;overflow-x:auto;padding:4px 2px;scrollbar-width:none}"
+                      + ".ai-chip{background:rgba(245,158,11,0.2);color:#fcd34d;border:1px solid rgba(245,158,11,0.4);border-radius:12px;padding:3px 8px;font-size:11px;font-weight:bold;white-space:nowrap}"
+                      + ".pred-btn{background:rgba(255,255,255,0.1);color:#e4e4e7;border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:3px 10px;font-size:12px;white-space:nowrap}"
+                      + ".tashkeel-row{display:flex;gap:4px;overflow-x:auto;background:rgba(255,255,255,0.05);padding:3px;border-radius:6px;margin-bottom:3px}"
+                      + ".t-key{flex:1;background:rgba(255,255,255,0.1);border:none;color:#fff;border-radius:4px;font-size:14px;padding:3px 0;text-align:center}"
+                      + ".rows{display:flex;flex-direction:column;gap:5px}"
+                      + ".row{display:flex;justify-content:center;gap:4px}"
+                      + ".key{flex:1;height:44px;background:rgba(255,255,255,0.14);border:1px solid rgba(255,255,255,0.12);color:#fff;border-radius:9px;font-size:18px;font-weight:600;display:flex;align-items:center;justify-content:center;transition:background 0.1s;touch-action:manipulation}"
+                      + ".key:active{background:rgba(245,158,11,0.5);transform:scale(0.94)}"
+                      + ".key-spec{max-width:52px;background:rgba(0,0,0,0.5);color:#d4d4d8;font-size:14px}"
+                      + ".key-space{flex:3;background:rgba(255,255,255,0.2);font-size:12px}"
+                      + ".key-enter{max-width:56px;background:#f59e0b;color:#000;font-weight:bold}"
+                      + "</style></head><body>"
+                      + "<div>"
+                      + "<div class='bar'><span class='ai-chip'>✨ Gemini AI</span><button class='pred-btn' onclick='sendText(\"السلام عليكم \")'>\"السلام عليكم\"</button><button class='pred-btn' onclick='sendText(\"شكراً جزيلاً \")'>\"شكراً جزيلاً\"</button><button class='pred-btn' onclick='sendText(\"بإذن الله \")'>\"بإذن الله\"</button><button class='pred-btn' onclick='sendText(\"تحياتي \")'>\"تحياتي\"</button></div>"
+                      + "<div class='tashkeel-row'>"
+                      + "<button class='t-key' onclick='sendText(\"َ\")'>َ</button><button class='t-key' onclick='sendText(\"ً\")'>ً</button><button class='t-key' onclick='sendText(\"ُ\")'>ُ</button><button class='t-key' onclick='sendText(\"ٌ\")'>ٌ</button><button class='t-key' onclick='sendText(\"ِ\")'>ِ</button><button class='t-key' onclick='sendText(\"ٍ\")'>ٍ</button><button class='t-key' onclick='sendText(\"ْ\")'>ْ</button><button class='t-key' onclick='sendText(\"ّ\")'>ّ</button><button class='t-key' onclick='sendText(\"ـ\")'>ـ</button>"
+                      + "</div>"
+                      + "</div>"
+                      + "<div class='rows' id='kb-container'></div>"
+                      + "<script>"
+                      + "const AR_ROWS=[['ض','ص','ث','ق','ف','غ','ع','ه','خ','ح','ج','د'],['ش','س','ي','ب','ل','ا','ت','ن','م','ك','ط'],['ئ','ء','ؤ','ر','لا','ى','ة','و','ز','ظ','ذ']];"
+                      + "const EN_ROWS=[['q','w','e','r','t','y','u','i','o','p'],['a','s','d','f','g','h','j','k','l'],['z','x','c','v','b','n','m']];"
+                      + "let currentLang='ar';"
+                      + "function render(){"
+                      + "  const rows = currentLang === 'ar' ? AR_ROWS : EN_ROWS;"
+                      + "  let html = '';"
+                      + "  rows.forEach((r, rIdx) => {"
+                      + "    html += '<div class=\"row\">';"
+                      + "    if(rIdx===2) html += '<button class=\"key key-spec\" onclick=\"toggleLang()\">'+(currentLang==='ar'?'EN':'عربي')+'</button>';"
+                      + "    r.forEach(k => { html += '<button class=\"key\" onclick=\"sendText(\\''+k+'\\')\">'+k+'</button>'; });"
+                      + "    if(rIdx===2) html += '<button class=\"key key-spec\" onclick=\"sendDel()\">⌫</button>';"
+                      + "    html += '</div>';"
+                      + "  });"
+                      + "  html += '<div class=\"row\">';"
+                      + "  html += '<button class=\"key key-spec\" onclick=\"sendText(\\'😊\\')\">😊</button>';"
+                      + "  html += '<button class=\"key key-space\" onclick=\"sendText(\\' \\')\">مسافة</button>';"
+                      + "  html += '<button class=\"key key-enter\" onclick=\"sendEnter()\">↵</button>';"
+                      + "  html += '</div>';"
+                      + "  document.getElementById('kb-container').innerHTML = html;"
+                      + "}"
+                      + "function sendText(txt){ if(window.AndroidKeyboard) window.AndroidKeyboard.insertText(txt); }"
+                      + "function sendDel(){ if(window.AndroidKeyboard) window.AndroidKeyboard.deleteBackward(); }"
+                      + "function sendEnter(){ if(window.AndroidKeyboard) window.AndroidKeyboard.sendEnter(); }"
+                      + "function toggleLang(){ currentLang = currentLang==='ar'?'en':'ar'; render(); }"
+                      + "render();"
+                      + "</script></body></html>";
+
+                  webView.loadDataWithBaseURL("https://localhost", keyboardHtml, "text/html", "UTF-8", null);
 
                   root.addView(webView, new FrameLayout.LayoutParams(
                           FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
