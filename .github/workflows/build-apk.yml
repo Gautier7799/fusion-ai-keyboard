@@ -30,18 +30,17 @@ jobs:
       - name: Install Dependencies
         run: |
           npm install --force
-
-      - name: Install Capacitor Tooling
-        run: |
           npm install @capacitor/core @capacitor/cli @capacitor/android --force
 
       - name: Build Web Dist
         run: npx vite build
 
-      - name: Initialize Capacitor Android
+      - name: Sync Capacitor Android
         run: |
-          npx cap init "Fusion AI Keyboard" "com.gaidiamjed.fusionkeyboard" --web-dir dist
-          npx cap add android
+          npx cap init "Fusion AI Keyboard" "com.gaidiamjed.fusionkeyboard" --web-dir dist || true
+          if [ ! -d "android/app" ]; then
+            npx cap add android
+          fi
           npx cap sync android
 
       - name: Build Debug APK with Gradle
