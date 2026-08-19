@@ -35,7 +35,7 @@ jobs:
       - name: Build Web Dist
         run: npx vite build
 
-      - name: Generate Android Project with Direct IME Engine
+      - name: Generate Pure Native Android Keyboard IME
         run: |
           rm -rf android capacitor.config.ts capacitor.config.json
           npx cap init "Fusion AI Keyboard" "com.gaidiamjed.fusionkeyboard" --web-dir dist
@@ -74,124 +74,235 @@ jobs:
                           android:resource="@xml/method" /> \
                   </service>' android/app/src/main/AndroidManifest.xml
 
-          # 3. Create Full Self-Contained Keyboard IME Service
+          # 3. Create Pure Native Android Views Keyboard Service
           mkdir -p android/app/src/main/java/com/gaidiamjed/fusionkeyboard
           cat << 'EOF' > android/app/src/main/java/com/gaidiamjed/fusionkeyboard/FusionKeyboardService.java
           package com.gaidiamjed.fusionkeyboard;
 
+          import android.graphics.Color;
+          import android.graphics.Typeface;
+          import android.graphics.drawable.GradientDrawable;
           import android.inputmethodservice.InputMethodService;
+          import android.view.Gravity;
           import android.view.KeyEvent;
           import android.view.View;
           import android.view.inputmethod.InputConnection;
-          import android.webkit.JavascriptInterface;
-          import android.webkit.WebSettings;
-          import android.webkit.WebView;
-          import android.webkit.WebViewClient;
-          import android.widget.FrameLayout;
+          import android.widget.Button;
+          import android.widget.HorizontalScrollView;
+          import android.widget.LinearLayout;
+          import android.widget.TextView;
 
           public class FusionKeyboardService extends InputMethodService {
-              private WebView webView;
+              private boolean isArabic = true;
+              private LinearLayout rowsContainer;
 
-              public class AndroidKeyboardBridge {
-                  @JavascriptInterface
-                  public void insertText(String text) {
-                      InputConnection ic = getCurrentInputConnection();
-                      if (ic != null && text != null) {
-                          ic.commitText(text, 1);
-                      }
-                  }
+              private final String[][] AR_ROWS = {
+                  {"ض", "ص", "ث", "ق", "ف", "غ", "ع", "ه", "خ", "ح", "ج", "د"},
+                  {"ش", "س", "ي", "ب", "ل", "ا", "ت", "ن", "م", "ك", "ط"},
+                  {"ئ", "ء", "ؤ", "ر", "لا", "ى", "ة", "و", "ز", "ظ", "ذ"}
+              };
 
-                  @JavascriptInterface
-                  public void deleteBackward() {
-                      InputConnection ic = getCurrentInputConnection();
-                      if (ic != null) {
-                          ic.deleteSurroundingText(1, 0);
-                      }
-                  }
+              private final String[][] EN_ROWS = {
+                  {"q", "w", "e", "r", "t", "y", "u", "i", "o", "p"},
+                  {"a", "s", "d", "f", "g", "h", "j", "k", "l"},
+                  {"z", "x", "c", "v", "b", "n", "m"}
+              };
 
-                  @JavascriptInterface
-                  public void sendEnter() {
-                      InputConnection ic = getCurrentInputConnection();
-                      if (ic != null) {
-                          ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER));
-                          ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER));
-                      }
-                  }
-              }
+              private final String[] QUICK_WORDS = {"السلام عليكم", "شكراً جزيلاً", "بإذن الله", "تحياتي", "صباح الخير"};
+              private final String[] TASHKEEL = {"َ", "ً", "ُ", "ٌ", "ِ", "ٍ", "ْ", "ّ", "ـ"};
 
               @Override
               public View onCreateInputView() {
-                  FrameLayout root = new FrameLayout(this);
-                  int heightPx = (int) (320 * getResources().getDisplayMetrics().density);
-                  root.setLayoutParams(new FrameLayout.LayoutParams(
-                          FrameLayout.LayoutParams.MATCH_PARENT, heightPx));
+                  LinearLayout root = new LinearLayout(this);
+                  root.setOrientation(LinearLayout.VERTICAL);
+                  root.setBackgroundColor(Color.parseColor("#121214"));
+                  root.setPadding(8, 8, 8, 16);
 
-                  webView = new WebView(this);
-                  WebSettings s = webView.getSettings();
-                  s.setJavaScriptEnabled(true);
-                  s.setDomStorageEnabled(true);
-                  s.setAllowFileAccess(true);
-                  s.setAllowContentAccess(true);
+                  // 1. AI & Predictions Toolbar
+                  HorizontalScrollView toolbarScroll = new HorizontalScrollView(this);
+                  toolbarScroll.setHorizontalScrollBarEnabled(false);
+                  LinearLayout toolbar = new LinearLayout(this);
+                  toolbar.setOrientation(LinearLayout.HORIZONTAL);
+                  toolbar.setPadding(4, 4, 4, 8);
 
-                  webView.addJavascriptInterface(new AndroidKeyboardBridge(), "AndroidKeyboard");
-                  webView.setWebViewClient(new WebViewClient());
+                  TextView aiBadge = new TextView(this);
+                  aiBadge.setText(" ✨ Gemini AI ");
+                  aiBadge.setTextColor(Color.parseColor("#FCD34D"));
+                  aiBadge.setTextSize(12);
+                  aiBadge.setTypeface(null, Typeface.BOLD);
+                  aiBadge.setBackground(createButtonDrawable(Color.parseColor("#332402"), Color.parseColor("#F59E0B")));
+                  aiBadge.setPadding(16, 8, 16, 8);
+                  toolbar.addView(aiBadge);
 
-                  String keyboardHtml = "<!DOCTYPE html><html dir='rtl' lang='ar'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1.0,user-scalable=no'><style>"
-                      + "*{-webkit-tap-highlight-color:transparent;box-sizing:border-box;margin:0;padding:0;user-select:none}"
-                      + "body{background:#09090b;color:#fff;font-family:system-ui,-apple-system,sans-serif;height:100vh;display:flex;flex-direction:column;justify-content:space-between;padding:4px 4px 8px}"
-                      + ".bar{display:flex;gap:6px;overflow-x:auto;padding:4px 2px;scrollbar-width:none}"
-                      + ".ai-chip{background:rgba(245,158,11,0.2);color:#fcd34d;border:1px solid rgba(245,158,11,0.4);border-radius:12px;padding:3px 8px;font-size:11px;font-weight:bold;white-space:nowrap}"
-                      + ".pred-btn{background:rgba(255,255,255,0.1);color:#e4e4e7;border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:3px 10px;font-size:12px;white-space:nowrap}"
-                      + ".tashkeel-row{display:flex;gap:4px;overflow-x:auto;background:rgba(255,255,255,0.05);padding:3px;border-radius:6px;margin-bottom:3px}"
-                      + ".t-key{flex:1;background:rgba(255,255,255,0.1);border:none;color:#fff;border-radius:4px;font-size:14px;padding:3px 0;text-align:center}"
-                      + ".rows{display:flex;flex-direction:column;gap:5px}"
-                      + ".row{display:flex;justify-content:center;gap:4px}"
-                      + ".key{flex:1;height:44px;background:rgba(255,255,255,0.14);border:1px solid rgba(255,255,255,0.12);color:#fff;border-radius:9px;font-size:18px;font-weight:600;display:flex;align-items:center;justify-content:center;transition:background 0.1s;touch-action:manipulation}"
-                      + ".key:active{background:rgba(245,158,11,0.5);transform:scale(0.94)}"
-                      + ".key-spec{max-width:52px;background:rgba(0,0,0,0.5);color:#d4d4d8;font-size:14px}"
-                      + ".key-space{flex:3;background:rgba(255,255,255,0.2);font-size:12px}"
-                      + ".key-enter{max-width:56px;background:#f59e0b;color:#000;font-weight:bold}"
-                      + "</style></head><body>"
-                      + "<div>"
-                      + "<div class='bar'><span class='ai-chip'>✨ Gemini AI</span><button class='pred-btn' onclick='sendText(\"السلام عليكم \")'>\"السلام عليكم\"</button><button class='pred-btn' onclick='sendText(\"شكراً جزيلاً \")'>\"شكراً جزيلاً\"</button><button class='pred-btn' onclick='sendText(\"بإذن الله \")'>\"بإذن الله\"</button><button class='pred-btn' onclick='sendText(\"تحياتي \")'>\"تحياتي\"</button></div>"
-                      + "<div class='tashkeel-row'>"
-                      + "<button class='t-key' onclick='sendText(\"َ\")'>َ</button><button class='t-key' onclick='sendText(\"ً\")'>ً</button><button class='t-key' onclick='sendText(\"ُ\")'>ُ</button><button class='t-key' onclick='sendText(\"ٌ\")'>ٌ</button><button class='t-key' onclick='sendText(\"ِ\")'>ِ</button><button class='t-key' onclick='sendText(\"ٍ\")'>ٍ</button><button class='t-key' onclick='sendText(\"ْ\")'>ْ</button><button class='t-key' onclick='sendText(\"ّ\")'>ّ</button><button class='t-key' onclick='sendText(\"ـ\")'>ـ</button>"
-                      + "</div>"
-                      + "</div>"
-                      + "<div class='rows' id='kb-container'></div>"
-                      + "<script>"
-                      + "const AR_ROWS=[['ض','ص','ث','ق','ف','غ','ع','ه','خ','ح','ج','د'],['ش','س','ي','ب','ل','ا','ت','ن','م','ك','ط'],['ئ','ء','ؤ','ر','لا','ى','ة','و','ز','ظ','ذ']];"
-                      + "const EN_ROWS=[['q','w','e','r','t','y','u','i','o','p'],['a','s','d','f','g','h','j','k','l'],['z','x','c','v','b','n','m']];"
-                      + "let currentLang='ar';"
-                      + "function render(){"
-                      + "  const rows = currentLang === 'ar' ? AR_ROWS : EN_ROWS;"
-                      + "  let html = '';"
-                      + "  rows.forEach((r, rIdx) => {"
-                      + "    html += '<div class=\"row\">';"
-                      + "    if(rIdx===2) html += '<button class=\"key key-spec\" onclick=\"toggleLang()\">'+(currentLang==='ar'?'EN':'عربي')+'</button>';"
-                      + "    r.forEach(k => { html += '<button class=\"key\" onclick=\"sendText(\\''+k+'\\')\">'+k+'</button>'; });"
-                      + "    if(rIdx===2) html += '<button class=\"key key-spec\" onclick=\"sendDel()\">⌫</button>';"
-                      + "    html += '</div>';"
-                      + "  });"
-                      + "  html += '<div class=\"row\">';"
-                      + "  html += '<button class=\"key key-spec\" onclick=\"sendText(\\'😊\\')\">😊</button>';"
-                      + "  html += '<button class=\"key key-space\" onclick=\"sendText(\\' \\')\">مسافة</button>';"
-                      + "  html += '<button class=\"key key-enter\" onclick=\"sendEnter()\">↵</button>';"
-                      + "  html += '</div>';"
-                      + "  document.getElementById('kb-container').innerHTML = html;"
-                      + "}"
-                      + "function sendText(txt){ if(window.AndroidKeyboard) window.AndroidKeyboard.insertText(txt); }"
-                      + "function sendDel(){ if(window.AndroidKeyboard) window.AndroidKeyboard.deleteBackward(); }"
-                      + "function sendEnter(){ if(window.AndroidKeyboard) window.AndroidKeyboard.sendEnter(); }"
-                      + "function toggleLang(){ currentLang = currentLang==='ar'?'en':'ar'; render(); }"
-                      + "render();"
-                      + "</script></body></html>";
+                  for (String word : QUICK_WORDS) {
+                      Button btn = new Button(this);
+                      btn.setText(word);
+                      btn.setTextColor(Color.parseColor("#E4E4E7"));
+                      btn.setTextSize(11);
+                      btn.setAllCaps(false);
+                      btn.setBackground(createButtonDrawable(Color.parseColor("#27272A"), Color.parseColor("#3F3F46")));
+                      btn.setPadding(14, 6, 14, 6);
+                      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                          LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+                      lp.setMargins(6, 0, 6, 0);
+                      btn.setLayoutParams(lp);
+                      btn.setOnClickListener(v -> commitText(word + " "));
+                      toolbar.addView(btn);
+                  }
+                  toolbarScroll.addView(toolbar);
+                  root.addView(toolbarScroll);
 
-                  webView.loadDataWithBaseURL("https://localhost", keyboardHtml, "text/html", "UTF-8", null);
+                  // 2. Tashkeel Quick Bar
+                  HorizontalScrollView tashkeelScroll = new HorizontalScrollView(this);
+                  tashkeelScroll.setHorizontalScrollBarEnabled(false);
+                  LinearLayout tashkeelBar = new LinearLayout(this);
+                  tashkeelBar.setOrientation(LinearLayout.HORIZONTAL);
+                  tashkeelBar.setPadding(2, 2, 2, 6);
 
-                  root.addView(webView, new FrameLayout.LayoutParams(
-                          FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+                  for (String t : TASHKEEL) {
+                      Button btn = new Button(this);
+                      btn.setText(t);
+                      btn.setTextColor(Color.WHITE);
+                      btn.setTextSize(14);
+                      btn.setBackground(createButtonDrawable(Color.parseColor("#1E1E24"), Color.parseColor("#2E2E38")));
+                      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(90, 80);
+                      lp.setMargins(3, 0, 3, 0);
+                      btn.setLayoutParams(lp);
+                      btn.setOnClickListener(v -> commitText(t));
+                      tashkeelBar.addView(btn);
+                  }
+                  tashkeelScroll.addView(tashkeelBar);
+                  root.addView(tashkeelScroll);
+
+                  // 3. Dynamic Rows
+                  rowsContainer = new LinearLayout(this);
+                  rowsContainer.setOrientation(LinearLayout.VERTICAL);
+                  renderKeys();
+                  root.addView(rowsContainer);
+
                   return root;
+              }
+
+              private void renderKeys() {
+                  rowsContainer.removeAllViews();
+                  String[][] rows = isArabic ? AR_ROWS : EN_ROWS;
+
+                  for (int i = 0; i < rows.length; i++) {
+                      LinearLayout rowLayout = new LinearLayout(this);
+                      rowLayout.setOrientation(LinearLayout.HORIZONTAL);
+                      rowLayout.setLayoutParams(new LinearLayout.LayoutParams(
+                          LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+                      rowLayout.setPadding(0, 3, 0, 3);
+
+                      if (i == 2) {
+                          Button langBtn = createSpecialButton(isArabic ? "EN" : "عربي", 1.2f, v -> {
+                              isArabic = !isArabic;
+                              renderKeys();
+                          });
+                          rowLayout.addView(langBtn);
+                      }
+
+                      for (String key : rows[i]) {
+                          Button btn = new Button(this);
+                          btn.setText(key);
+                          btn.setTextColor(Color.WHITE);
+                          btn.setTextSize(18);
+                          btn.setTypeface(null, Typeface.BOLD);
+                          btn.setAllCaps(false);
+                          btn.setBackground(createButtonDrawable(Color.parseColor("#2C2C32"), Color.parseColor("#44444F")));
+                          LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, 120, 1.0f);
+                          lp.setMargins(3, 0, 3, 0);
+                          btn.setLayoutParams(lp);
+                          btn.setOnClickListener(v -> commitText(key));
+                          rowLayout.addView(btn);
+                      }
+
+                      if (i == 2) {
+                          Button delBtn = createSpecialButton("⌫", 1.2f, v -> deleteChar());
+                          delBtn.setTextColor(Color.parseColor("#F87171"));
+                          rowLayout.addView(delBtn);
+                      }
+
+                      rowsContainer.addView(rowLayout);
+                  }
+
+                  // Space & Enter Row
+                  LinearLayout bottomRow = new LinearLayout(this);
+                  bottomRow.setOrientation(LinearLayout.HORIZONTAL);
+                  bottomRow.setPadding(0, 4, 0, 2);
+
+                  Button emojiBtn = createSpecialButton("😊", 1.0f, v -> commitText("😊"));
+                  Button spaceBtn = new Button(this);
+                  spaceBtn.setText(isArabic ? "مسافة" : "space");
+                  spaceBtn.setTextColor(Color.WHITE);
+                  spaceBtn.setTextSize(14);
+                  spaceBtn.setBackground(createButtonDrawable(Color.parseColor("#383842"), Color.parseColor("#F59E0B")));
+                  LinearLayout.LayoutParams spaceLp = new LinearLayout.LayoutParams(0, 120, 4.0f);
+                  spaceLp.setMargins(4, 0, 4, 0);
+                  spaceBtn.setLayoutParams(spaceLp);
+                  spaceBtn.setOnClickListener(v -> commitText(" "));
+
+                  Button enterBtn = new Button(this);
+                  enterBtn.setText("↵");
+                  enterBtn.setTextColor(Color.BLACK);
+                  enterBtn.setTextSize(20);
+                  enterBtn.setTypeface(null, Typeface.BOLD);
+                  enterBtn.setBackground(createButtonDrawable(Color.parseColor("#F59E0B"), Color.parseColor("#FBBF24")));
+                  LinearLayout.LayoutParams enterLp = new LinearLayout.LayoutParams(0, 120, 1.3f);
+                  enterLp.setMargins(4, 0, 4, 0);
+                  enterBtn.setLayoutParams(enterLp);
+                  enterBtn.setOnClickListener(v -> sendEnterKey());
+
+                  bottomRow.addView(emojiBtn);
+                  bottomRow.addView(spaceBtn);
+                  bottomRow.addView(enterBtn);
+                  rowsContainer.addView(bottomRow);
+              }
+
+              private Button createSpecialButton(String text, float weight, View.OnClickListener listener) {
+                  Button btn = new Button(this);
+                  btn.setText(text);
+                  btn.setTextColor(Color.parseColor("#E4E4E7"));
+                  btn.setTextSize(14);
+                  btn.setTypeface(null, Typeface.BOLD);
+                  btn.setAllCaps(false);
+                  btn.setBackground(createButtonDrawable(Color.parseColor("#1E1E24"), Color.parseColor("#3F3F46")));
+                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, 120, weight);
+                  lp.setMargins(3, 0, 3, 0);
+                  btn.setLayoutParams(lp);
+                  btn.setOnClickListener(listener);
+                  return btn;
+              }
+
+              private GradientDrawable createButtonDrawable(int bgColor, int strokeColor) {
+                  GradientDrawable drawable = new GradientDrawable();
+                  drawable.setShape(GradientDrawable.RECTANGLE);
+                  drawable.setColor(bgColor);
+                  drawable.setStroke(2, strokeColor);
+                  drawable.setCornerRadius(14);
+                  return drawable;
+              }
+
+              private void commitText(String text) {
+                  InputConnection ic = getCurrentInputConnection();
+                  if (ic != null) {
+                      ic.commitText(text, 1);
+                  }
+              }
+
+              private void deleteChar() {
+                  InputConnection ic = getCurrentInputConnection();
+                  if (ic != null) {
+                      ic.deleteSurroundingText(1, 0);
+                  }
+              }
+
+              private void sendEnterKey() {
+                  InputConnection ic = getCurrentInputConnection();
+                  if (ic != null) {
+                      ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER));
+                      ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER));
+                  }
               }
           }
           EOF
