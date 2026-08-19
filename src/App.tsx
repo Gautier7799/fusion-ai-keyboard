@@ -5,274 +5,147 @@ import {
   Copy, 
   Check, 
   Layers, 
-  Wand2,
+  Wand2, 
   Globe, 
   Delete, 
   CornerDownLeft, 
   ArrowUp, 
-  Smile,
-  X,
-  Palette,
-  CheckCheck,
-  Feather,
-  Languages,
-  BookOpen
+  Smile, 
+  X, 
+  Palette, 
+  Feather, 
+  Languages 
 } from 'lucide-react';
 
-// --- Types & Data ---
-type KeyboardTheme = 'ios-glass' | 'material-you' | 'hybrid-blur' | 'oled-pure' | 'tokyo-night';
-type KeySoundType = 'ios-tick' | 'pixel-pop' | 'mechanical' | 'bubble' | 'silent';
-type KeyboardLayout = 'arabic' | 'english' | 'symbols' | 'emojis';
-type TextTransformAction = 'tashkeel' | 'rephrase-formal' | 'rephrase-friendly' | 'fix-grammar' | 'summarize' | 'translate-en' | 'poetry' | 'emoji-decorate';
+const ARABIC_KEYS = [
+  ['ض', 'ص', 'ث', 'ق', 'ف', 'غ', 'ع', 'ه', 'خ', 'ح', 'ج', 'د'],
+  ['ش', 'س', 'ي', 'ب', 'ل', 'ا', 'ت', 'ن', 'م', 'ك', 'ط'],
+  ['ئ', 'ء', 'ؤ', 'ر', 'لا', 'ى', 'ة', 'و', 'ز', 'ظ', 'ذ']
+];
 
-interface AISuggestion {
-  original: string;
-  enhanced: string;
-  tone?: string;
-}
-
-const ARABIC_LAYOUT = {
-  row1: ['ض', 'ص', 'ث', 'ق', 'ف', 'غ', 'ع', 'ه', 'خ', 'ح', 'ج', 'د'],
-  row2: ['ش', 'س', 'ي', 'ب', 'ل', 'ا', 'ت', 'ن', 'م', 'ك', 'ط'],
-  row3: ['ئ', 'ء', 'ؤ', 'ر', 'لا', 'ى', 'ة', 'و', 'ز', 'ظ', 'ذ'],
-};
-
-const ARABIC_SHIFT_LAYOUT = {
-  row1: ['َ', 'ً', 'ُ', 'ٌ', 'ِ', 'ٍ', 'ْ', 'ّ', 'إ', 'أ', 'آ', 'ـ'],
-  row2: ['«', '»', '،', '؛', '؟', '!', '٪', ':', '؛', '"', "'"],
-  row3: ['(', ')', '[', ']', '{', '}', '+', '=', '*', '/', '\\'],
-};
-
-const ENGLISH_LOWER_LAYOUT = {
-  row1: ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
-  row2: ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'],
-  row3: ['z', 'x', 'c', 'v', 'b', 'n', 'm'],
-};
-
-const ENGLISH_UPPER_LAYOUT = {
-  row1: ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
-  row2: ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
-  row3: ['Z', 'X', 'C', 'V', 'B', 'N', 'M'],
-};
+const ENGLISH_KEYS = [
+  ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
+  ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'],
+  ['z', 'x', 'c', 'v', 'b', 'n', 'm']
+];
 
 const NUMBER_ROW = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
-const ARABIC_NUMBER_ROW = ['١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩', '٠'];
-
-const SYMBOLS_PAGE_1 = {
-  row1: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
-  row2: ['-', '/', ':', ';', '(', ')', '$', '&', '@', '"'],
-  row3: ['.', ',', '?', '!', "'", '#', '%', '*', '+', '='],
-};
-
-const QUICK_EMOJIS = ['😊', '❤️', '🔥', '👍', '🙏', '✨', '🌹', '💡', '🚀', '😍', '👏', '🎉', '💯', '👌', '⭐', '🤝'];
-
-const DIACRITICS_LIST = [
-  { label: 'فتحة', char: 'َ' },
-  { label: 'تنوين فتح', char: 'ً' },
-  { label: 'ضمة', char: 'ُ' },
-  { label: 'تنوين ضم', char: 'ٌ' },
-  { label: 'كسرة', char: 'ِ' },
-  { label: 'تنوين كسر', char: 'ٍ' },
-  { label: 'سكون', char: 'ْ' },
-  { label: 'شدّة', char: 'ّ' },
-  { label: 'تطويل', char: 'ـ' },
-];
-
-const SAMPLE_TEXTS = [
-  "السلام عليكم ورحمة الله وبركاته، اهلا وسهلا بك.",
-  "هذا النص يحتاج الى تشكيل وتدقيق لغوي سريع.",
-  "Meeting today at 4:00 PM regarding the project.",
-  "شكرا جزيلا على المجهود الرائع والتصميم المبتكر.",
-];
-
-// --- Audio Helper ---
-function playAudioTick(soundType: KeySoundType = 'ios-tick') {
-  if (soundType === 'silent') return;
-  try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    const now = ctx.currentTime;
-    
-    if (soundType === 'ios-tick') {
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(1200, now);
-      osc.frequency.exponentialRampToValueAtTime(300, now + 0.025);
-    } else {
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(450, now);
-      osc.frequency.exponentialRampToValueAtTime(150, now + 0.035);
-    }
-    gain.gain.setValueAtTime(0.3, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start(now);
-    osc.stop(now + 0.03);
-  } catch (e) {}
-}
+const QUICK_EMOJIS = ['😊', '❤️', '🔥', '👍', '🙏', '✨', '🌹', '💡', '🚀', '😍', '👏', '🎉', '💯'];
+const TASHKEEL_LIST = ['َ', 'ً', 'ُ', 'ٌ', 'ِ', 'ٍ', 'ْ', 'ّ', 'ـ'];
 
 export function App() {
-  const [text, setText] = useState<string>('مرحباً بك في لوحة المفاتيح الهجينة المتطورة! اضغط على أي زر لتجربة الكتابة أو استخدم أدوات الذكاء الاصطناعي للتشكيل والتدقيق.');
-  
-  // Settings State
-  const [theme, setTheme] = useState<KeyboardTheme>('hybrid-blur');
-  const [accentColor, setAccentColor] = useState<string>('#F59E0B');
-  const [soundType, setSoundType] = useState<KeySoundType>('ios-tick');
-  const [layout, setLayout] = useState<KeyboardLayout>('arabic');
-  const [isShift, setIsShift] = useState<boolean>(false);
-  const [keyBorderRadius, setKeyBorderRadius] = useState<number>(10);
-  const [showNumberRow, setShowNumberRow] = useState<boolean>(true);
-
-  // Predictions & History
-  const [predictions, setPredictions] = useState<string[]>(['ورحمة الله', 'بإذن الله', 'تحياتي']);
-  const [isLoadingAi, setIsLoadingAi] = useState<boolean>(false);
-  const [activeAiAction, setActiveAiAction] = useState<string | null>(null);
-  const [aiHistory, setAiHistory] = useState<AISuggestion[]>([]);
-  const [isThemeModalOpen, setIsThemeModalOpen] = useState<boolean>(false);
-  const [copied, setCopied] = useState<boolean>(false);
+  const [text, setText] = useState('مرحباً بك في لوحة المفاتيح الهجينة المتطورة! اضغط على أي زر لتجربة الكتابة.');
+  const [theme, setTheme] = useState<'hybrid' | 'glass' | 'oled'>('hybrid');
+  const [accent, setAccent] = useState('#F59E0B');
+  const [lang, setLang] = useState<'arabic' | 'english' | 'emojis'>('arabic');
+  const [isShift, setIsShift] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [predictions, setPredictions] = useState(['ورحمة الله', 'بإذن الله', 'تحياتي']);
+  const [aiLoading, setAiLoading] = useState(false);
 
   useEffect(() => {
-    if (!text.trim()) {
-      setPredictions(['السلام عليكم', 'شكراً جزيلاً', 'صباح الخير']);
-      return;
-    }
-    const lastWord = text.trim().split(/\s+/).pop() || '';
-    if (lastWord.includes('السلام')) setPredictions(['عليكم', 'ورحمة الله', 'وبركاته']);
-    else if (lastWord.includes('شكرا')) setPredictions(['جزيلا', 'لك', 'على اهتمامك']);
-    else if (lastWord.includes('صباح')) setPredictions(['الخير', 'النور', 'الورد']);
+    const word = text.trim().split(/\s+/).pop() || '';
+    if (word.includes('السلام')) setPredictions(['عليكم', 'ورحمة الله', 'وبركاته']);
+    else if (word.includes('شكرا')) setPredictions(['جزيلا', 'لك', 'جداً']);
+    else if (word.includes('صباح')) setPredictions(['الخير', 'النور', 'الورد']);
     else setPredictions(['بإذن الله', 'ورحمة الله', 'تحياتي']);
   }, [text]);
 
-  const handleKeyPress = (char: string) => {
-    playAudioTick(soundType);
-    setText((prev) => prev + char);
+  const playClick = () => {
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1000, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(300, ctx.currentTime + 0.025);
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.025);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.03);
+    } catch (e) {}
+  };
+
+  const handleKey = (ch: string) => {
+    playClick();
+    setText((prev) => prev + ch);
   };
 
   const handleBackspace = () => {
-    playAudioTick(soundType);
+    playClick();
     setText((prev) => prev.slice(0, -1));
   };
 
-  const handleSpace = () => {
-    playAudioTick(soundType);
-    setText((prev) => prev + ' ');
-  };
-
-  const handleEnter = () => {
-    playAudioTick(soundType);
-    setText((prev) => prev + '\n');
-  };
-
-  const handleAiTransform = (action: TextTransformAction) => {
+  const handleAiAction = (type: string) => {
     if (!text.trim()) return;
-    setIsLoadingAi(true);
-    setActiveAiAction(action);
-
+    setAiLoading(true);
     setTimeout(() => {
-      let enhanced = text;
-      if (action === 'tashkeel') {
-        enhanced = text
-          .replace(/السلام عليكم/g, 'السَّلَامُ عَلَيْكُمْ')
-          .replace(/ورحمة الله/g, 'وَرَحْمَةُ اللهِ')
-          .replace(/شكرا/g, 'شُكْرًا')
-          .replace(/مرحبا/g, 'مَرْحَبًا')
-          .replace(/اليوم/g, 'اليَوْمَ');
-      } else if (action === 'rephrase-formal') {
-        enhanced = `نحيطكم علماً بالتالي: ${text}. وتفضلوا بقبول فائق الاحترام.`;
-      } else if (action === 'rephrase-friendly') {
-        enhanced = `أهلاً يا غالي! 😊 ${text} ✨ أتمنى لك يوماً سعيداً 🌸`;
-      } else if (action === 'emoji-decorate') {
-        enhanced = `✨ ${text} 🚀📱💡`;
-      } else if (action === 'translate-en') {
-        enhanced = "Hello! Processed through the Hybrid Fusion AI Keyboard.";
+      let res = text;
+      if (type === 'tashkeel') {
+        res = text.replace(/السلام عليكم/g, 'السَّلَامُ عَلَيْكُمْ').replace(/شكرا/g, 'شُكْرًا').replace(/مرحبا/g, 'مَرْحَبًا');
+      } else if (type === 'formal') {
+        res = `نحيط سيادتكم علماً بأنه: ${text}. وتفضلوا بقبول فائق الاحترام.`;
+      } else if (type === 'friendly') {
+        res = `أهلاً يا غالي! 😊 ${text} ✨ أتمنى لك يوماً سعيداً 🌸`;
+      } else if (type === 'emoji') {
+        res = `✨ ${text} 🚀📱💡`;
       }
-
-      setAiHistory((prev) => [
-        { original: text, enhanced, tone: action },
-        ...prev.slice(0, 8),
-      ]);
-      setText(enhanced);
-      setIsLoadingAi(false);
-      setActiveAiAction(null);
-    }, 500);
+      setText(res);
+      setAiLoading(false);
+    }, 400);
   };
 
-  const handleCopyText = () => {
-    if (!text) return;
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const isGlass = theme === 'ios-glass' || theme === 'hybrid-blur';
-
-  const keyBaseClass = `relative flex items-center justify-center font-medium transition-all duration-100 select-none cursor-pointer active:scale-92 ${
+  const isGlass = theme === 'glass' || theme === 'hybrid';
+  const keyClass = `flex-1 h-11 flex items-center justify-center font-semibold rounded-lg select-none active:scale-95 transition-all text-base ${
     isGlass 
       ? 'bg-white/15 hover:bg-white/25 text-white backdrop-blur-md border border-white/10' 
-      : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-100 border border-neutral-700/50'
+      : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-100 border border-neutral-700'
   }`;
-
-  const specialKeyClass = `relative flex items-center justify-center font-semibold transition-all duration-100 select-none cursor-pointer active:scale-92 ${
-    isGlass 
-      ? 'bg-neutral-900/50 hover:bg-neutral-900/70 text-neutral-300 backdrop-blur-md border border-white/10' 
-      : 'bg-neutral-900 hover:bg-neutral-800 text-neutral-300 border border-neutral-700/40'
-  }`;
-
-  const keyRadiusStyle = { borderRadius: `${keyBorderRadius}px` };
 
   return (
-    <div id="fusion-keyboard-app-root" className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col justify-between font-sans" dir="rtl">
-      
-      {/* 🌟 Header App Bar */}
+    <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col justify-between" dir="rtl">
+      {/* Header */}
       <header className="w-full border-b border-white/10 px-4 py-3 bg-neutral-900/80 backdrop-blur-md flex items-center justify-between sticky top-0 z-30">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 via-purple-600 to-cyan-400 p-[1.5px] shadow-lg">
-            <div className="w-full h-full bg-neutral-900 rounded-[10px] flex items-center justify-center">
-              <Sparkles className="w-5 h-5 text-amber-400" />
-            </div>
+          <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center">
+            <Sparkles className="w-4 h-4 text-amber-400" />
           </div>
           <div>
-            <h1 className="text-base font-bold text-white flex items-center gap-2">
+            <h1 className="text-sm font-bold text-white flex items-center gap-2">
               <span>Fusion AI Keyboard</span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">iOS + Pixel</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono">iOS+Pixel</span>
             </h1>
-            <p className="text-xs text-neutral-400">تجانس تصميم iOS وألوان Material You مع ذكاء Gemini</p>
+            <p className="text-[11px] text-neutral-400">تجانس تصميم iOS وألوان Material You</p>
           </div>
         </div>
 
         <button
-          onClick={() => setIsThemeModalOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-xs font-semibold text-neutral-200 border border-white/10"
+          onClick={() => setIsModalOpen(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-xs font-semibold border border-white/10"
         >
-          <Layers className="w-4 h-4 text-amber-400" />
-          <span>تخصيص الثيم</span>
+          <Layers className="w-3.5 h-3.5 text-amber-400" />
+          <span>الثيم</span>
         </button>
       </header>
 
-      {/* 📱 Main Editor Area */}
-      <main className="flex-1 max-w-4xl w-full mx-auto p-4 flex flex-col gap-4">
-        <div className="w-full bg-neutral-900/90 border border-white/10 rounded-2xl p-4 shadow-xl flex flex-col gap-3">
-          <div className="flex items-center justify-between border-b border-white/5 pb-2">
-            <div className="flex items-center gap-2 text-xs text-neutral-400">
-              <span>عدد الحروف: <strong className="text-amber-400 font-mono">{text.length}</strong></span>
-              <span>•</span>
-              <span>عدد الكلمات: <strong className="text-cyan-400 font-mono">{text.trim() ? text.trim().split(/\s+/).length : 0}</strong></span>
-            </div>
-
-            <div className="flex items-center gap-1.5">
+      {/* Text Area */}
+      <main className="flex-1 max-w-3xl w-full mx-auto p-4 flex flex-col gap-3">
+        <div className="w-full bg-neutral-900/90 border border-white/10 rounded-2xl p-4 shadow-xl flex flex-col gap-2">
+          <div className="flex items-center justify-between border-b border-white/5 pb-2 text-xs text-neutral-400">
+            <span>الحروف: <strong className="text-amber-400">{text.length}</strong></span>
+            <div className="flex items-center gap-2">
               <button
-                onClick={handleCopyText}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-300 text-xs border border-white/10"
+                onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
+                className="flex items-center gap-1 px-2 py-1 rounded bg-white/5 text-neutral-200 hover:bg-white/10"
               >
-                {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copied ? 'تم النسخ' : 'نسخ'}</span>
+                {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                <span>{copied ? 'تم' : 'نسخ'}</span>
               </button>
-              <button
-                onClick={() => setText('')}
-                className="p-1.5 rounded-lg bg-white/5 hover:bg-red-500/20 text-neutral-400 hover:text-red-400 border border-white/10"
-              >
-                <Trash2 className="w-4 h-4" />
+              <button onClick={() => setText('')} className="p-1 rounded bg-white/5 hover:bg-red-500/20 text-neutral-400 hover:text-red-400">
+                <Trash2 className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
@@ -281,194 +154,215 @@ export function App() {
             rows={4}
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="اكتب هنا باستخدام لوحة المفاتيح التفاعلية بالأسفل..."
-            className="w-full bg-transparent text-lg sm:text-xl text-white placeholder-neutral-500 focus:outline-none resize-none leading-relaxed"
+            placeholder="اكتب هنا باستخدام لوحة المفاتيح بالأسفل..."
+            className="w-full bg-transparent text-lg text-white placeholder-neutral-500 focus:outline-none resize-none"
           />
+        </div>
+      </main>
 
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pt-2 border-t border-white/5">
-            <span className="text-[11px] text-neutral-500 shrink-0 font-medium">جمل للتجربة:</span>
-            {SAMPLE_TEXTS.map((sample, i) => (
+      {/* Keyboard Dock */}
+      <footer className="w-full max-w-3xl mx-auto border-t border-white/10 bg-neutral-950 sticky bottom-0 z-40">
+        {/* Predictions & AI Bar */}
+        <div className={`p-2 flex flex-col gap-1.5 border-b border-white/10 ${isGlass ? 'bg-neutral-900/60 backdrop-blur-xl' : 'bg-neutral-900'}`}>
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+            {predictions.map((p, i) => (
               <button
                 key={i}
-                onClick={() => setText(sample)}
-                className="px-2.5 py-1 rounded-md bg-white/5 hover:bg-white/10 text-[11px] text-neutral-300 truncate max-w-[200px] border border-white/5"
+                onClick={() => setText((prev) => prev.trimEnd() ? `${prev.trimEnd()} ${p} ` : `${p} `)}
+                className="px-2.5 py-0.5 text-xs bg-white/10 rounded-full text-neutral-200 border border-white/10 whitespace-nowrap"
               >
-                {sample}
+                "{p}"
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-1">
+            <div className="flex items-center gap-1 px-2 py-0.5 bg-amber-500/20 rounded text-[11px] font-bold text-amber-300">
+              <Wand2 className="w-3 h-3" />
+              <span>Gemini AI</span>
+            </div>
+            {[
+              { id: 'tashkeel', label: 'تشكيل تام', icon: Sparkles },
+              { id: 'formal', label: 'صياغة رسمية', icon: Feather },
+              { id: 'friendly', label: 'صياغة ودودة', icon: Smile },
+              { id: 'emoji', label: 'تزيين ذكي', icon: Sparkles },
+            ].map((act) => (
+              <button
+                key={act.id}
+                onClick={() => handleAiAction(act.id)}
+                disabled={aiLoading || !text.trim()}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-white/10 whitespace-nowrap disabled:opacity-50"
+              >
+                <act.icon className="w-3 h-3" />
+                <span>{act.label}</span>
               </button>
             ))}
           </div>
         </div>
 
-        {/* AI Transformation Recent History */}
-        {aiHistory.length > 0 && (
-          <div className="w-full bg-neutral-900/60 border border-white/5 rounded-xl p-3 flex flex-col gap-2">
-            <div className="flex items-center justify-between text-xs text-neutral-400">
-              <span className="flex items-center gap-1 font-semibold text-amber-300">
-                <Wand2 className="w-3.5 h-3.5" />
-                سجل تحسينات الذكاء الاصطناعي
-              </span>
-              <button onClick={() => setAiHistory([])} className="text-[10px] text-neutral-500">مسح</button>
-            </div>
-            <div className="flex flex-col gap-2 max-h-32 overflow-y-auto">
-              {aiHistory.map((item, index) => (
-                <div key={index} className="p-2 bg-black/40 rounded-lg border border-white/5 flex flex-col gap-1 text-xs">
-                  <div className="text-emerald-300 font-medium">{item.enhanced}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </main>
-
-      {/* ⌨️ Fixed Bottom Keyboard */}
-      <footer className="w-full max-w-4xl mx-auto border-t border-white/10 shadow-2xl rounded-t-3xl overflow-hidden sticky bottom-0 z-40 bg-neutral-950">
-        
-        {/* Smart Toolbar */}
-        <div className={`w-full flex flex-col border-b border-white/10 ${isGlass ? 'bg-neutral-900/60 backdrop-blur-xl' : 'bg-neutral-900'}`}>
-          <div className="flex items-center justify-between px-2 py-1.5 gap-1.5 overflow-x-auto no-scrollbar border-b border-white/5">
-            <div className="flex items-center gap-1.5 flex-1 overflow-x-auto no-scrollbar py-0.5">
-              {isLoadingAi ? (
-                <div className="flex items-center gap-2 px-3 py-1 text-xs text-amber-300 animate-pulse">
-                  <Sparkles className="w-3.5 h-3.5 animate-spin" />
-                  <span>جاري المعالجة بالذكاء الاصطناعي...</span>
-                </div>
-              ) : (
-                predictions.map((pred, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => setText((prev) => prev.trimEnd() ? `${prev.trimEnd()} ${pred} ` : `${pred} `)}
-                    className="px-3 py-1 text-xs font-medium bg-white/10 hover:bg-white/20 active:scale-95 text-neutral-100 rounded-full border border-white/10 whitespace-nowrap"
-                  >
-                    "{pred}"
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-1.5 px-2 py-1.5 overflow-x-auto no-scrollbar">
-            <div className="flex items-center gap-1 px-2 py-1 bg-amber-500/20 border border-amber-500/30 rounded-lg text-[11px] font-bold text-amber-300 shrink-0">
-              <Wand2 className="w-3.5 h-3.5 animate-bounce" />
-              <span>Gemini AI</span>
-            </div>
-
-            {[
-              { id: 'tashkeel', label: 'تشكيل تام', icon: Sparkles },
-              { id: 'rephrase-formal', label: 'صياغة رسمية', icon: Feather },
-              { id: 'rephrase-friendly', label: 'صياغة ودودة', icon: Smile },
-              { id: 'translate-en', label: 'ترجمة إنجليزية', icon: Languages },
-              { id: 'emoji-decorate', label: 'تزيين ذكي', icon: Smile },
-            ].map((action) => {
-              const Icon = action.icon;
-              return (
-                <button
-                  key={action.id}
-                  onClick={() => handleAiTransform(action.id as TextTransformAction)}
-                  disabled={isLoadingAi || !text.trim()}
-                  className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap border transition-all ${
-                    activeAiAction === action.id && isLoadingAi
-                      ? 'bg-amber-500 text-black border-amber-400'
-                      : text.trim()
-                      ? 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border-white/10'
-                      : 'bg-neutral-800/30 text-neutral-500 border-transparent opacity-60'
-                  }`}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  <span>{action.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Virtual Keyboard */}
-        <div className={`w-full select-none pb-2 pt-1 ${isGlass ? 'bg-black/40 backdrop-blur-2xl' : 'bg-neutral-950'}`}>
-          {/* Quick Diacritics row */}
-          {layout === 'arabic' && (
-            <div className="flex items-center justify-between px-2 py-1 gap-1 overflow-x-auto no-scrollbar border-b border-white/5 bg-white/5">
-              {DIACRITICS_LIST.map((item, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => handleKeyPress(item.char)}
-                  className="px-2.5 py-1 text-sm bg-white/10 hover:bg-amber-500/20 hover:text-amber-300 text-neutral-200 rounded-md border border-white/5"
-                >
-                  {item.char}
+        {/* Keyboard Keys */}
+        <div className="p-1.5 flex flex-col gap-1.5">
+          {/* Quick Tashkeel */}
+          {lang === 'arabic' && (
+            <div className="flex justify-between gap-1 overflow-x-auto no-scrollbar bg-white/5 p-1 rounded-md">
+              {TASHKEEL_LIST.map((t, idx) => (
+                <button key={idx} onClick={() => handleKey(t)} className="flex-1 py-1 text-sm bg-white/10 hover:bg-amber-500/20 text-neutral-200 rounded">
+                  {t}
                 </button>
               ))}
             </div>
           )}
 
           {/* Number Row */}
-          {showNumberRow && layout !== 'symbols' && layout !== 'emojis' && (
-            <div className="flex justify-center gap-1.5 px-2 py-1">
-              {(layout === 'arabic' ? ARABIC_NUMBER_ROW : NUMBER_ROW).map((num, i) => (
-                <button key={i} style={keyRadiusStyle} onClick={() => handleKeyPress(num)} className={`${keyBaseClass} flex-1 h-8 text-sm font-mono opacity-80`}>
-                  {num}
+          <div className="flex justify-center gap-1">
+            {NUMBER_ROW.map((n, i) => (
+              <button key={i} onClick={() => handleKey(n)} className={`${keyClass} h-8 text-xs opacity-75`}>
+                {n}
+              </button>
+            ))}
+          </div>
+
+          {/* Arabic Layout */}
+          {lang === 'arabic' && ARABIC_KEYS.map((row, rIdx) => (
+            <div key={rIdx} className="flex justify-center gap-1">
+              {rIdx === 2 && (
+                <button onClick={() => setIsShift(!isShift)} className={`${keyClass} max-w-[48px] ${isShift ? 'bg-amber-500/30 text-amber-300' : ''}`}>
+                  <ArrowUp className="w-4 h-4" />
+                </button>
+              )}
+              {row.map((k, kIdx) => (
+                <button key={kIdx} onClick={() => handleKey(k)} className={keyClass}>
+                  {k}
+                </button>
+              ))}
+              {rIdx === 2 && (
+                <button onClick={handleBackspace} className={`${keyClass} max-w-[48px] text-red-300`}>
+                  <Delete className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          ))}
+
+          {/* English Layout */}
+          {lang === 'english' && ENGLISH_KEYS.map((row, rIdx) => (
+            <div key={rIdx} className="flex justify-center gap-1" dir="ltr">
+              {rIdx === 2 && (
+                <button onClick={() => setIsShift(!isShift)} className={`${keyClass} max-w-[48px] ${isShift ? 'bg-amber-500/30 text-amber-300' : ''}`}>
+                  <ArrowUp className="w-4 h-4" />
+                </button>
+              )}
+              {row.map((k, kIdx) => (
+                <button key={kIdx} onClick={() => handleKey(isShift ? k.toUpperCase() : k)} className={keyClass}>
+                  {isShift ? k.toUpperCase() : k}
+                </button>
+              ))}
+              {rIdx === 2 && (
+                <button onClick={handleBackspace} className={`${keyClass} max-w-[48px] text-red-300`}>
+                  <Delete className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          ))}
+
+          {/* Emojis Layout */}
+          {lang === 'emojis' && (
+            <div className="grid grid-cols-7 gap-1.5 p-2 max-h-[140px] overflow-y-auto">
+              {QUICK_EMOJIS.map((em, i) => (
+                <button key={i} onClick={() => handleKey(em)} className={`${keyClass} text-xl`}>
+                  {em}
                 </button>
               ))}
             </div>
           )}
 
-          {/* Keys Layout */}
-          {layout === 'arabic' && (
-            <div className="flex flex-col gap-2 p-1.5" dir="rtl">
-              <div className="flex justify-center gap-1.5">
-                {(isShift ? ARABIC_SHIFT_LAYOUT : ARABIC_LAYOUT).row1.map((char, i) => (
-                  <button key={i} style={keyRadiusStyle} onClick={() => handleKeyPress(char)} className={`${keyBaseClass} flex-1 h-11 text-lg`}>{char}</button>
-                ))}
+          {/* Spacebar & Action row */}
+          <div className="flex items-center justify-between gap-1.5 mt-0.5">
+            <button
+              onClick={() => setLang(lang === 'emojis' ? 'arabic' : 'emojis')}
+              className={`${keyClass} max-w-[48px]`}
+            >
+              <Smile className="w-4 h-4 text-amber-400" />
+            </button>
+
+            <button
+              onClick={() => setLang(lang === 'arabic' ? 'english' : 'arabic')}
+              className={`${keyClass} max-w-[64px] text-xs flex items-center gap-1`}
+            >
+              <Globe className="w-3.5 h-3.5 text-cyan-400" />
+              <span>{lang === 'arabic' ? 'EN' : 'عربي'}</span>
+            </button>
+
+            <button
+              onClick={() => { playClick(); setText((prev) => prev + ' '); }}
+              className="flex-1 h-11 relative flex items-center justify-center bg-white/20 hover:bg-white/25 active:scale-95 text-white backdrop-blur-md rounded-lg border border-white/10 text-xs"
+            >
+              <span>{lang === 'arabic' ? 'مسافة' : 'space'}</span>
+              <div className="absolute bottom-1 w-12 h-1 rounded-full opacity-70" style={{ backgroundColor: accent }} />
+            </button>
+
+            <button
+              onClick={() => { playClick(); setText((prev) => prev + '\n'); }}
+              style={{ backgroundColor: accent }}
+              className="px-4 h-11 rounded-lg flex items-center justify-center text-black font-bold active:scale-95 transition-all"
+            >
+              <CornerDownLeft className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </footer>
+
+      {/* Theme Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md" onClick={() => setIsModalOpen(false)}>
+          <div className="w-full max-w-sm bg-neutral-900 border border-white/10 rounded-2xl p-4 flex flex-col gap-3" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-white/10 pb-2">
+              <div className="flex items-center gap-2 font-bold text-sm">
+                <Palette className="w-4 h-4 text-amber-400" />
+                <span>تخصيص الثيم والألوان</span>
               </div>
-              <div className="flex justify-center gap-1.5 px-2">
-                {(isShift ? ARABIC_SHIFT_LAYOUT : ARABIC_LAYOUT).row2.map((char, i) => (
-                  <button key={i} style={keyRadiusStyle} onClick={() => handleKeyPress(char)} className={`${keyBaseClass} flex-1 h-11 text-lg`}>{char}</button>
+              <button onClick={() => setIsModalOpen(false)} className="p-1 text-neutral-400 hover:text-white"><X className="w-4 h-4" /></button>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs text-neutral-400">نمط التصميم:</label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {[
+                  { id: 'hybrid', label: 'هجين Hybrid' },
+                  { id: 'glass', label: 'زجاج iOS' },
+                  { id: 'oled', label: 'سواد OLED' }
+                ].map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => setTheme(t.id as any)}
+                    className={`py-2 rounded-lg text-xs font-semibold border ${theme === t.id ? 'border-amber-400 bg-amber-500/10 text-amber-300' : 'border-white/10 bg-neutral-800'}`}
+                  >
+                    {t.label}
+                  </button>
                 ))}
-              </div>
-              <div className="flex justify-center gap-1.5">
-                <button style={keyRadiusStyle} onClick={() => setIsShift(!isShift)} className={`${specialKeyClass} w-11 h-11 shrink-0 ${isShift ? 'bg-amber-500/30 text-amber-300' : ''}`}>
-                  <ArrowUp className={`w-5 h-5 ${isShift ? 'text-amber-400' : ''}`} />
-                </button>
-                {(isShift ? ARABIC_SHIFT_LAYOUT : ARABIC_LAYOUT).row3.map((char, i) => (
-                  <button key={i} style={keyRadiusStyle} onClick={() => handleKeyPress(char)} className={`${keyBaseClass} flex-1 h-11 text-lg`}>{char}</button>
-                ))}
-                <button style={keyRadiusStyle} onClick={handleBackspace} className={`${specialKeyClass} w-11 h-11 shrink-0 text-red-300`}>
-                  <Delete className="w-5 h-5" />
-                </button>
               </div>
             </div>
-          )}
 
-          {layout === 'english' && (
-            <div className="flex flex-col gap-2 p-1.5" dir="ltr">
-              <div className="flex justify-center gap-1.5">
-                {(isShift ? ENGLISH_UPPER_LAYOUT : ENGLISH_LOWER_LAYOUT).row1.map((char, i) => (
-                  <button key={i} style={keyRadiusStyle} onClick={() => handleKeyPress(char)} className={`${keyBaseClass} flex-1 h-11 text-lg`}>{char}</button>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs text-neutral-400">لون Material You المميز:</label>
+              <div className="flex items-center gap-2">
+                {['#F59E0B', '#38BDF8', '#34D399', '#A855F7', '#F43F5E'].map((col) => (
+                  <button
+                    key={col}
+                    onClick={() => setAccent(col)}
+                    style={{ backgroundColor: col }}
+                    className={`w-8 h-8 rounded-full border-2 ${accent === col ? 'border-white scale-110' : 'border-transparent'}`}
+                  />
                 ))}
-              </div>
-              <div className="flex justify-center gap-1.5 px-3">
-                {(isShift ? ENGLISH_UPPER_LAYOUT : ENGLISH_LOWER_LAYOUT).row2.map((char, i) => (
-                  <button key={i} style={keyRadiusStyle} onClick={() => handleKeyPress(char)} className={`${keyBaseClass} flex-1 h-11 text-lg`}>{char}</button>
-                ))}
-              </div>
-              <div className="flex justify-center gap-1.5">
-                <button style={keyRadiusStyle} onClick={() => setIsShift(!isShift)} className={`${specialKeyClass} w-12 h-11 shrink-0 ${isShift ? 'bg-amber-500/30 text-amber-300' : ''}`}>
-                  <ArrowUp className={`w-5 h-5 ${isShift ? 'text-amber-400' : ''}`} />
-                </button>
-                {(isShift ? ENGLISH_UPPER_LAYOUT : ENGLISH_LOWER_LAYOUT).row3.map((char, i) => (
-                  <button key={i} style={keyRadiusStyle} onClick={() => handleKeyPress(char)} className={`${keyBaseClass} flex-1 h-11 text-lg`}>{char}</button>
-                ))}
-                <button style={keyRadiusStyle} onClick={handleBackspace} className={`${specialKeyClass} w-12 h-11 shrink-0 text-red-300`}>
-                  <Delete className="w-5 h-5" />
-                </button>
               </div>
             </div>
-          )}
 
-          {layout === 'symbols' && (
-            <div className="flex flex-col gap-2 p-1.5">
-              <div className="flex justify-center gap-1.5">
-                {SYMBOLS_PAGE_1.row1.map((char, i) => (
-                  <button key={i} style={keyRadiusStyle} onClick={() => handleKeyPress(char)} className={`${keyBaseClass} flex-1 h-11 text-base font-mono`}>{char}</button>
-                ))}
-              </div>
-              <div className="flex justify-center gap-1.5">
-                {SYMBOLS_PAGE_1.row2.map((char, i) => (
-                  <button key={i} style={keyRadiusStyle} onClick={() => handleKeyPress(char)} className={`${keyBaseClass} flex-1 h-11 text-base
+            <button onClick={() => setIsModalOpen(false)} className="w-full py-2 bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs rounded-xl mt-2">
+              حفظ الإعدادات
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+export default App;
