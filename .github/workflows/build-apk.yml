@@ -35,11 +35,80 @@ jobs:
       - name: Build Web Dist
         run: npx vite build
 
-      - name: Generate Fresh Android Project
+      - name: Generate Fresh Android Project with Keyboard IME
         run: |
           rm -rf android capacitor.config.ts capacitor.config.json
           npx cap init "Fusion AI Keyboard" "com.gaidiamjed.fusionkeyboard" --web-dir dist
           npx cap add android
+
+          # 1. Create method.xml for Android IME
+          mkdir -p android/app/src/main/res/xml
+          cat << 'EOF' > android/app/src/main/res/xml/method.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <input-method xmlns:android="http://schemas.android.com/apk/res/android"
+              android:settingsActivity="com.gaidiamjed.fusionkeyboard.MainActivity"
+              android:supportsSwitchingToNextInputMethod="true">
+              <subtype
+                  android:label="العربية (Fusion AI)"
+                  android:imeSubtypeLocale="ar"
+                  android:imeSubtypeMode="keyboard" />
+              <subtype
+                  android:label="English (Fusion AI)"
+                  android:imeSubtypeLocale="en_US"
+                  android:imeSubtypeMode="keyboard" />
+          </input-method>
+          EOF
+
+          # 2. Inject Keyboard IME Service in AndroidManifest.xml
+          sed -i '/<\/application>/i \
+                  <service \
+                      android:name=".FusionKeyboardService" \
+                      android:label="Fusion AI Keyboard" \
+                      android:permission="android.permission.BIND_INPUT_METHOD" \
+                      android:exported="true"> \
+                      <intent-filter> \
+                          <action android:name="android.view.InputMethod" /> \
+                      </intent-filter> \
+                      <meta-data \
+                          android:name="android.view.im" \
+                          android:resource="@xml/method" /> \
+                  </service>' android/app/src/main/AndroidManifest.xml
+
+          # 3. Create FusionKeyboardService.java
+          mkdir -p android/app/src/main/java/com/gaidiamjed/fusionkeyboard
+          cat << 'EOF' > android/app/src/main/java/com/gaidiamjed/fusionkeyboard/FusionKeyboardService.java
+          package com.gaidiamjed.fusionkeyboard;
+
+          import android.inputmethodservice.InputMethodService;
+          import android.view.View;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          import android.widget.FrameLayout;
+
+          public class FusionKeyboardService extends InputMethodService {
+              private WebView keyboardWebView;
+
+              @Override
+              public View onCreateInputView() {
+                  FrameLayout layout = new FrameLayout(this);
+                  layout.setLayoutParams(new FrameLayout.LayoutParams(
+                          FrameLayout.LayoutParams.MATCH_PARENT, 850));
+
+                  keyboardWebView = new WebView(this);
+                  WebSettings settings = keyboardWebView.getSettings();
+                  settings.setJavaScriptEnabled(true);
+                  settings.setDomStorageEnabled(true);
+
+                  keyboardWebView.setWebViewClient(new WebViewClient());
+                  keyboardWebView.loadUrl("file:///android_asset/public/index.html");
+
+                  layout.addView(keyboardWebView);
+                  return layout;
+              }
+          }
+          EOF
+
           npx cap sync android
 
       - name: Build Debug APK with Gradle
